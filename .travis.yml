@@ -1,0 +1,32 @@
+sudo: required
+language: python
+services:
+  - docker
+env:
+  - TOXENV=py37
+  - TOXENV=flake8
+  - TOXENV=pylint
+  - TOXENV=mypy
+  - TOXENV=black-only-check
+before_install:
+  - docker build -t aiosonic-tests -f Dockerfile.tests .
+script:
+  - sudo chown -R 1000:1000 .
+  - docker run --rm -t -v $PWD:/data -w /data -e TOX_WORK_DIR=/tmp aiosonic-tests tox -v -e $TOXENV
+  - >
+    docker run --rm -t
+    -v $PWD:/data
+    -w /data
+    -e TOX_WORK_DIR=/tmp
+    -e CI
+    -e TRAVIS
+    -e SHIPPABLE
+    -e TRAVIS_BRANCH
+    -e TRAVIS_COMMIT
+    -e TRAVIS_JOB_NUMBER
+    -e TRAVIS_PULL_REQUEST
+    -e TRAVIS_JOB_ID
+    -e TRAVIS_REPO_SLUG
+    -e TRAVIS_TAG
+    -e TRAVIS_OS_NAME
+    aiosonic tox -v -e $TOXENV
