@@ -50,7 +50,7 @@ class SonicAPI:
         return (salt, token)
 
     async def _create_url(
-        self, endpoint: str, extra_query: Dict[str, Union[str, int]] = None
+        self, endpoint: str, extra_query: Optional[Dict] = None
     ) -> str:
         salt, token = await self._create_token()
         query_dict = {
@@ -74,7 +74,7 @@ class SonicAPI:
         return url
 
     async def _get(
-        self, endpoint: str, extra_query: Dict[str, Union[str, int]] = None
+        self, endpoint: str, extra_query: Optional[Dict] = None
     ) -> Dict:
         """Doing GET requests against the Subsonic API."""
         url = await self._create_url(endpoint, extra_query=extra_query)
@@ -124,11 +124,9 @@ class SonicAPI:
                 artist collection has changed since the given time
                 (in milliseconds since 1 Jan 1970)
         """
-        extra_query = {}
-        if music_folder_id:
-            extra_query["musicFolderId"] = music_folder_id
-        if if_modified_since:
-            extra_query["ifModifiedSince"] = if_modified_since
+        extra_query: Optional[Dict[str, Any]] = {}
+        extra_query["musicFolderId"] = music_folder_id
+        extra_query["ifModifiedSince"] = if_modified_since
 
         result = await self._get("/getIndexes", extra_query=extra_query)
 
@@ -160,13 +158,34 @@ class SonicAPI:
     async def get_artists(self, music_folder_id: Optional[int] = None) -> Dict:
         """/getArtists
 
-         Similar to getIndexes, but organizes music according to ID3 tags.
+        Similar to getIndexes, but organizes music according to ID3 tags.
 
-         Args:
-            music_folder_id (int): If specified, only return artists in the
-                music folder with the given ID.
+        Args:
+           music_folder_id (int): If specified, only return artists in the
+               music folder with the given ID.
+
+        Returns:
+            Dict: Dictionary with Artists and its album count.
+
+            Example::
+
+                {
+                    'index': [
+                        {
+                            'artist': [
+                                {
+                                    'albumCount': 1,
+                                    'coverArt': 'ar-998',
+                                    'id': '998',
+                                    'name': 'A.M. Thawn'
+                                }
+                            ]
+                        }
+                    ]
+                }
+
         """
-        extra_query = {}
+        extra_query: Optional[Dict] = {}
         if music_folder_id:
             extra_query["musicFolderId"] = music_folder_id
 
