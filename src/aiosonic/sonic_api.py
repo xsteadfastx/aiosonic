@@ -5,12 +5,13 @@ import logging
 import random
 import string
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import aiohttp
 
 from aiosonic.errors import APIError
+from aiosonic.types import QueryDict
 
 
 @dataclass
@@ -50,10 +51,10 @@ class SonicAPI:
         return (salt, token)
 
     async def _create_url(
-        self, endpoint: str, extra_query: Optional[Dict] = None
+        self, endpoint: str, extra_query: QueryDict = None
     ) -> str:
         salt, token = await self._create_token()
-        query_dict = {
+        query_dict: QueryDict = {
             "u": self.username,
             "t": token,
             "s": salt,
@@ -62,7 +63,7 @@ class SonicAPI:
             "f": "json",
         }
         if extra_query:
-            query_dict = {**query_dict, **extra_query}
+            query_dict.update(extra_query)
         query = urlencode(query_dict)
         scheme, netloc, path, _, fragment = urlsplit(self.server)
         if path and path[-1] == "/":
@@ -74,9 +75,25 @@ class SonicAPI:
         return url
 
     async def _get(
-        self, endpoint: str, extra_query: Optional[Dict] = None
+        self, endpoint: str, extra_query: QueryDict = None
     ) -> Dict:
-        """Doing GET requests against the Subsonic API."""
+        """Does GET requests against the Subsonic API.
+
+        A wrapper to create GET requests against the API. It takes the endpoint, builds
+        url, does the requests and parses the json data.
+
+        Args:
+            endpoint (str): The Endpoint to connect to.
+            extra_query (QueryDict): Extra query arguments that needs to get encoded
+                in the API url.
+
+        Returns:
+            Dict of parsed json data.
+
+        Raises:
+            APIError: An error when something goes wrong while communicating
+                with the API.
+        """
         url = await self._create_url(endpoint, extra_query=extra_query)
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
@@ -124,7 +141,7 @@ class SonicAPI:
                 artist collection has changed since the given time
                 (in milliseconds since 1 Jan 1970)
         """
-        extra_query: Optional[Dict[str, Any]] = {}
+        extra_query: QueryDict = {}
         extra_query["musicFolderId"] = music_folder_id
         extra_query["ifModifiedSince"] = if_modified_since
 
@@ -185,10 +202,156 @@ class SonicAPI:
                 }
 
         """
-        extra_query: Optional[Dict] = {}
-        if music_folder_id:
-            extra_query["musicFolderId"] = music_folder_id
+        extra_query: QueryDict = {}
+        extra_query["musicFolderId"] = music_folder_id
 
         result = await self._get("/getArtists", extra_query=extra_query)
 
         return result["subsonic-response"]["artists"]
+
+    async def get_artist(self, artist_id: int) -> Dict:
+        """/getArtist
+
+        Returns details for an artist, including a list of albums.
+        This method organizes music according to ID3 tags.
+
+        Args:
+            artist_id (int): The artist ID.
+
+        Returns:
+            Dict: Dictionary with artist data.
+
+            Example::
+
+                {
+                    'album': [
+                        {
+                            'artist': 'A.M. Thawn',
+                            'artistId': '998',
+                            'coverArt': 'al-2636',
+                            'created': '2015-05-19T06:29:18.000Z',
+                            'duration': 1378,
+                            'genre': 'Post-Hardcore',
+                            'id': '2636',
+                            'name': 'The Oscillating Fan',
+                            'songCount': 7,
+                            'year': 2000
+                        }
+                    ],
+                    'albumCount': 1,
+                    'coverArt': 'ar-998',
+                    'id': '998',
+                    'name': 'A.M. Thawn'
+                }
+
+        """
+        result = await self._get("/getArtist", extra_query={"id": artist_id})
+
+        return result["subsonic-response"]["artist"]
+
+    async def get_album(self, album_id: int) -> Dict:
+        """/getAlbum
+
+        Returns details for an album, including a list of songs.
+        This method organizes music according to ID3 tags.
+
+        Args:
+            album_id (int): The album ID.
+
+        Returns:
+            Dict: Album data.
+
+            Example::
+
+                {
+                    'artist': 'A.M. Thawn',
+                    'artistId': '998',
+                    'coverArt': 'al-2636',
+                    'created': '2015-05-19T06:29:18.000Z',
+                    'duration': 1378,
+                    'genre': 'Post-Hardcore',
+                    'id': '2636',
+                    'name': 'The Oscillating Fan',
+                    'song': [
+                        {
+                           'album': 'The Oscillating Fan',
+                           'albumId': '2636',
+                           'artist': 'A.M. Thawn',
+                           'artistId': '998',
+                           'bitRate': 997,
+                           'contentType': 'audio/flac',
+                           'coverArt': '36959',
+                           'created': '2015-05-19T06:29:18.000Z',
+                           'discNumber': 1,
+                           'duration': 180,
+                           'genre': 'Post-Hardcore',
+                           'id': '36964',
+                           'isDir': False,
+                           'isVideo': False,
+                           'parent': '36959',
+                           'path': 'A.M. Thawn/The Oscillating Fan/01 The Money.flac',
+                           'playCount': 7,
+                           'size': 22454316,
+                           'suffix': 'flac',
+                           'title': 'The Money Race',
+                           'track': 1,
+                           'transcodedContentType': 'audio/mpeg',
+                           'transcodedSuffix': 'mp3',
+                           'type': 'music',
+                           'year': 2000
+                        },
+                    ]
+                    'songCount': 1,
+                    'year': 2000
+                }
+
+        """
+        result = await self._get("/getAlbum", extra_query={"id": album_id})
+
+        return result["subsonic-response"]["album"]
+
+    async def get_song(self, song_id: int) -> Dict:
+        """/getSong
+
+        Returns details for a song.
+
+        Args:
+            song_id (int): The song ID.
+
+        Returns:
+            Dict: Details for a song.
+
+            Example::
+
+                {
+                    'album': 'The Oscillating Fan',
+                    'albumId': '2636',
+                    'artist': 'A.M. Thawn',
+                    'artistId': '998',
+                    'bitRate': 997,
+                    'contentType': 'audio/flac',
+                    'coverArt': '36959',
+                    'created': '2015-05-19T06:29:18.000Z',
+                    'discNumber': 1,
+                    'duration': 180,
+                    'genre': 'Post-Hardcore',
+                    'id': '36964',
+                    'isDir': False,
+                    'isVideo': False,
+                    'parent': '36959',
+                    'path': 'A.M. Thawn/The Oscillating Fan/01 The Money Race.flac',
+                    'playCount': 7,
+                    'size': 22454316,
+                    'suffix': 'flac',
+                    'title': 'The Money Race',
+                    'track': 1,
+                    'transcodedContentType': 'audio/mpeg',
+                    'transcodedSuffix': 'mp3',
+                    'type': 'music',
+                    'year': 2000
+                }
+
+        """
+        result = await self._get("/getSong", extra_query={"id": song_id})
+
+        return result["subsonic-response"]["song"]
