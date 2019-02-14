@@ -6,6 +6,4 @@ __version__ = "0.0.0"
 
 from aiosonic.sonic_api import SonicAPI
 
-__all__ = [
-    "SonicAPI",
-]
+__all__ = ["SonicAPI"]

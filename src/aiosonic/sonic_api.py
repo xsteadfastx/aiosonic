@@ -50,9 +50,7 @@ class SonicAPI:
 
         return (salt, token)
 
-    async def _create_url(
-        self, endpoint: str, extra_query: QueryDict = None
-    ) -> str:
+    async def _create_url(self, endpoint: str, extra_query: QueryDict = None) -> str:
         salt, token = await self._create_token()
         query_dict: QueryDict = {
             "u": self.username,
@@ -74,9 +72,7 @@ class SonicAPI:
 
         return url
 
-    async def _get(
-        self, endpoint: str, extra_query: QueryDict = None
-    ) -> Dict:
+    async def _get(self, endpoint: str, extra_query: QueryDict = None) -> Dict:
         """Does GET requests against the Subsonic API.
 
         A wrapper to create GET requests against the API. It takes the endpoint, builds
