@@ -5,9 +5,10 @@ import logging
 import random
 import string
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
+import aiofiles
 import aiohttp
 
 from aiosonic.errors import APIError
@@ -80,11 +81,11 @@ class SonicAPI:
 
         Args:
             endpoint (str): The Endpoint to connect to.
-            extra_query (QueryDict): Extra query arguments that needs to get encoded
-                in the API url.
+            extra_query (QueryDict, optional): Extra query arguments that needs to
+                get encoded in the API url.
 
         Returns:
-            Dict of parsed json data.
+            dict: Parsed json data.
 
         Raises:
             APIError: An error when something goes wrong while communicating
@@ -131,11 +132,11 @@ class SonicAPI:
         """/getIndexes
 
         Args:
-            music_folder_id (int): If specified, only return artists in the music folder
-                with the given ID
-            if_modified_since (int): If specified, only return a result if the
-                artist collection has changed since the given time
-                (in milliseconds since 1 Jan 1970)
+            music_folder_id (int, optional): If specified, only return artists in
+                the music folder with the given ID.
+            if_modified_since (int, optional): If specified, only return a result if the
+                artist collection has changed since the given time (in milliseconds
+                since 1 Jan 1970)
         """
         extra_query: QueryDict = {}
         extra_query["musicFolderId"] = music_folder_id
@@ -174,11 +175,11 @@ class SonicAPI:
         Similar to getIndexes, but organizes music according to ID3 tags.
 
         Args:
-           music_folder_id (int): If specified, only return artists in the
+           music_folder_id (int, optional): If specified, only return artists in the
                music folder with the given ID.
 
         Returns:
-            Dict: Dictionary with Artists and its album count.
+            dict: Dictionary with Artists and its album count.
 
             Example::
 
@@ -215,7 +216,7 @@ class SonicAPI:
             artist_id (int): The artist ID.
 
         Returns:
-            Dict: Dictionary with artist data.
+            dict: Dictionary with artist data.
 
             Example::
 
@@ -255,7 +256,7 @@ class SonicAPI:
             album_id (int): The album ID.
 
         Returns:
-            Dict: Album data.
+            dict: Album data.
 
             Example::
 
@@ -315,7 +316,7 @@ class SonicAPI:
             song_id (int): The song ID.
 
         Returns:
-            Dict: Details for a song.
+            dict: Details for a song.
 
             Example::
 
@@ -351,3 +352,52 @@ class SonicAPI:
         result = await self._get("/getSong", extra_query={"id": song_id})
 
         return result["subsonic-response"]["song"]
+
+    async def get_videos(self) -> List[Dict]:
+        """/getVideos
+
+        Returns all video files.
+
+        Returns:
+            list: Videos with details.
+
+            Example::
+
+                [
+                    {
+                        'video': [
+                            {
+                                'album': '12 Monkeys',
+                                'contentType': 'video/avi',
+                                'created': '2014-09-02T09:20:37.000Z',
+                                'id': '59079',
+                                'isDir': False,
+                                'isVideo': True,
+                                'parent': '58722',
+                                'path': '12 Monkeys/12 Monkeys.avi',
+                                'playCount': 0,
+                                'size': 572141414,
+                                'suffix': 'avi',
+                                'title': '12 Monkeys',
+                                'transcodedContentType': 'video/x-flv',
+                                'transcodedSuffix': 'flv',
+                                'type': 'video'
+                            },
+                        ]
+                    }
+                ]
+
+        """
+        result = await self._get("/getVideos")
+
+        return result["subsonic-response"]["videos"]
+
+    async def download(self, file_id: int, destination: str) -> None:
+        """/download"""
+        url = await self._create_url("/download", extra_query={"id": file_id})
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                if resp.status == 200:
+                    file =  await aiofiles.open(destination, mode="wb")
+                    await file.write(await resp.read())
+                    await file.close()

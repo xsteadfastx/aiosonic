@@ -11,6 +11,7 @@ click = "*"
 aiohttp = "^3.5"
 cchardet = "^2.1"
 aiodns = "^1.2"
+aiofiles = "^0.4.0"
 
 [tool.poetry.dev-dependencies]
 mypy = "*"
