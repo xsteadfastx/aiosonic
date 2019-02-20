@@ -79,7 +79,7 @@ async def test_create_url(mock_create_token, server, extra_query, expected):
 @pytest.mark.asyncio
 @patch("aiosonic.sonic_api.SonicAPI._create_url")
 @patch("aiosonic.sonic_api.aiohttp.ClientSession.get")
-async def test_get_exception(mock_get, mock_create_url, sonic):
+async def test_request_exception(mock_get, mock_create_url, sonic):
     mock_create_url.return_value = "http://foo.bar.tld/endpoint"
     mock_get.return_value.__aenter__.return_value.json = CoroutineMock(
         return_value={
@@ -92,15 +92,61 @@ async def test_get_exception(mock_get, mock_create_url, sonic):
     mock_get.return_value.__aenter__.return_value.status = 200
 
     with pytest.raises(APIError, match="this is a test"):
-        await sonic._get("/endpoint")
+        await sonic._request("GET", "/endpoint")
 
 
 @pytest.mark.asyncio
 @patch("aiosonic.sonic_api.SonicAPI._create_url")
 @patch("aiosonic.sonic_api.aiohttp.ClientSession.get")
-async def test_get_no_200(mock_get, mock_create_url, sonic):
+async def test_request_no_200(mock_get, mock_create_url, sonic):
     mock_create_url.return_value = "http://foo.bar.tld/endpoint"
     mock_get.return_value.__aenter__.return_value.status = 404
 
     with pytest.raises(APIError, match="status code not 200!"):
-        await sonic._get("/endpoint")
+        await sonic._request("GET", "/endpoint")
+
+
+@pytest.mark.asyncio
+async def test_request_wrong_method(sonic):
+    with pytest.raises(APIError):
+        await sonic._request("FOO", "/endpoint")
+
+
+@pytest.mark.asyncio
+@patch("aiosonic.sonic_api.SonicAPI._create_url")
+@patch("aiosonic.sonic_api.aiohttp.ClientSession.get")
+async def test_request_json_false(mock_get, mock_create_url, sonic):
+    mock_create_url.return_value = "http://foo.bar.tld/endpoint"
+    mock_get.return_value.__aenter__.return_value.read = CoroutineMock(
+        return_value="this is data"
+    )
+    mock_get.return_value.__aenter__.return_value.status = 200
+
+    result = await sonic._request("GET", "/endpoint", json=False)
+
+    assert result == "this is data"
+
+
+@pytest.mark.asyncio
+@patch("aiosonic.sonic_api.SonicAPI._create_url")
+@patch("aiosonic.sonic_api.aiohttp.ClientSession.get")
+async def test_request_json_true(mock_get, mock_create_url, sonic):
+    mock_create_url.return_value = "http://foo.bar.tld/endpoint"
+    mock_get.return_value.__aenter__.return_value.json = CoroutineMock(
+        return_value={"subsonic-response": {"status": "ok", "foo": "bar"}}
+    )
+    mock_get.return_value.__aenter__.return_value.status = 200
+
+    result = await sonic._request("GET", "/endpoint", json=True)
+
+    assert result == {"subsonic-response": {"status": "ok", "foo": "bar"}}
+
+
+@pytest.mark.asyncio
+@patch("aiosonic.sonic_api.SonicAPI._request")
+async def test_download(mock_request, sonic, tmpdir):
+    mock_request.return_value = b"foo bar"
+    download_file = tmpdir.join("foo.txt")
+    await sonic.download(123, download_file.strpath)
+
+    assert download_file.read() == "foo bar"

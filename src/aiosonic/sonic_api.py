@@ -5,7 +5,7 @@ import logging
 import random
 import string
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import aiofiles
@@ -73,56 +73,76 @@ class SonicAPI:
 
         return url
 
-    async def _get(self, endpoint: str, extra_query: QueryDict = None) -> Dict:
-        """Does GET requests against the Subsonic API.
+    async def _request(
+        self, req_method: str, endpoint: str, extra_query: QueryDict = None, json=True
+    ) -> Union[Dict, bytes]:
+        """Does requests against the Subsonic API.
 
         A wrapper to create GET requests against the API. It takes the endpoint, builds
         url, does the requests and parses the json data.
 
         Args:
+            req_method (str): The request method to use.
             endpoint (str): The Endpoint to connect to.
             extra_query (QueryDict, optional): Extra query arguments that needs to
                 get encoded in the API url.
+            json (bool, optional): If data should get decoded to a dict object.
+                Defaults to True.
 
         Returns:
-            dict: Parsed json data.
+            Parsed json data dict or raw bytes.
 
         Raises:
             APIError: An error when something goes wrong while communicating
                 with the API.
         """
+        if req_method not in ("GET", "POST"):
+            raise APIError(f"{req_method} not a known request method!")
+
         url = await self._create_url(endpoint, extra_query=extra_query)
+
         async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
+
+            session_methods = {"GET": session.get, "POST": session.post}
+
+            async with session_methods[req_method](url) as resp:
                 self.logger.debug("got response: %s", resp)
+
                 if resp.status == 200:
-                    data = await resp.json()
-                    self.logger.debug("got json: %s", data)
-                    if data["subsonic-response"]["status"] == "failed":
-                        raise APIError(data["subsonic-response"]["error"]["message"])
+                    if json:
+                        data = await resp.json()
+                        self.logger.debug("got json: %s", data)
+                        if data["subsonic-response"]["status"] == "failed":
+                            raise APIError(
+                                data["subsonic-response"]["error"]["message"]
+                            )
+                        return data
+
+                    data = await resp.read()
                     return data
-                raise APIError("status code not 200!")
+
+                raise APIError(f"got status code {resp.status}!")
 
     async def ping(self) -> Dict:
         """/ping
 
         Used to test connectivity with the server. Takes no extra parameters.
         """
-        return await self._get("/ping")
+        return await self._request("GET", "/ping")
 
     async def get_license(self) -> Dict:
         """/getLicense
 
         Get details about the software license. Takes no extra parameters.
         """
-        return await self._get("/getLicense")
+        return await self._request("GET", "/getLicense")
 
     async def get_music_folders(self) -> Dict:
         """/getMusicFolders
 
     Returns all configured top-level music folders. Takes no extra parameters.
     """
-        return await self._get("/getMusicFolders")
+        return await self._request("GET", "/getMusicFolders")
 
     async def get_indexes(
         self,
@@ -142,7 +162,7 @@ class SonicAPI:
         extra_query["musicFolderId"] = music_folder_id
         extra_query["ifModifiedSince"] = if_modified_since
 
-        result = await self._get("/getIndexes", extra_query=extra_query)
+        result = await self._request("GET", "/getIndexes", extra_query=extra_query)
 
         return result["subsonic-response"]["indexes"]
 
@@ -156,7 +176,9 @@ class SonicAPI:
             folder_id (int): A string which uniquely identifies the music folder.
                 Obtained by calls to getIndexes or getMusicDirectory.
         """
-        result = await self._get("/getMusicDirectory", extra_query={"id": folder_id})
+        result = await self._request(
+            "GET", "/getMusicDirectory", extra_query={"id": folder_id}
+        )
 
         return result["subsonic-response"]["directory"]
 
@@ -165,7 +187,7 @@ class SonicAPI:
 
         Returns all genres.
         """
-        result = await self._get("/getGenres")
+        result = await self._request("GET", "/getGenres")
 
         return result["subsonic-response"]["genres"]
 
@@ -202,7 +224,7 @@ class SonicAPI:
         extra_query: QueryDict = {}
         extra_query["musicFolderId"] = music_folder_id
 
-        result = await self._get("/getArtists", extra_query=extra_query)
+        result = await self._request("GET", "/getArtists", extra_query=extra_query)
 
         return result["subsonic-response"]["artists"]
 
@@ -242,7 +264,7 @@ class SonicAPI:
                 }
 
         """
-        result = await self._get("/getArtist", extra_query={"id": artist_id})
+        result = await self._request("GET", "/getArtist", extra_query={"id": artist_id})
 
         return result["subsonic-response"]["artist"]
 
@@ -303,7 +325,7 @@ class SonicAPI:
                 }
 
         """
-        result = await self._get("/getAlbum", extra_query={"id": album_id})
+        result = await self._request("GET", "/getAlbum", extra_query={"id": album_id})
 
         return result["subsonic-response"]["album"]
 
@@ -349,7 +371,7 @@ class SonicAPI:
                 }
 
         """
-        result = await self._get("/getSong", extra_query={"id": song_id})
+        result = await self._request("GET", "/getSong", extra_query={"id": song_id})
 
         return result["subsonic-response"]["song"]
 
@@ -388,16 +410,44 @@ class SonicAPI:
                 ]
 
         """
-        result = await self._get("/getVideos")
+        result = await self._request("GET", "/getVideos")
 
         return result["subsonic-response"]["videos"]
 
+    async def get_video_info(self, video_id: int) -> Dict:
+        """/getVideoInfo
+
+        Returns details for a video, including information about available
+        audio tracks, subtitles (captions) and conversions.
+
+        Args:
+           video_id (int): The video ID.
+
+        Returns:
+            dict: Video details.
+
+        """
+        result = await self._request(
+            "GET", "/getVideoInfo", extra_query={"id": video_id}
+        )
+
+        return result
+
     async def download(self, file_id: int, destination: str) -> None:
-        """/download"""
-        url = await self._create_url("/download", extra_query={"id": file_id})
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                if resp.status == 200:
-                    file =  await aiofiles.open(destination, mode="wb")
-                    await file.write(await resp.read())
-                    await file.close()
+        """/download
+
+        Downloads file.
+
+        Args:
+            file_id (int): Id of the file in the subsonic db.
+            destination (str): the local full path to download the file to.
+        """
+        file = await aiofiles.open(destination, mode="wb")
+        self.logger.info("start to download file to %s", destination)
+        await file.write(
+            await self._request(
+                "GET", "/download", extra_query={"id": file_id}, json=False
+            )
+        )
+        await file.close()
+        self.logger.info("done writing file")
