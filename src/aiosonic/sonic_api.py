@@ -424,8 +424,8 @@ class SonicAPI:
            video_id (int): The video ID.
 
         Returns:
-            dict: Video details.
-
+            dict: Video details. Still needs more dict details cause its not
+                implemented in airsonic (what i use).
         """
         result = await self._request(
             "GET", "/getVideoInfo", extra_query={"id": video_id}

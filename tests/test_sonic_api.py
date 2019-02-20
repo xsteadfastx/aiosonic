@@ -102,7 +102,7 @@ async def test_request_no_200(mock_get, mock_create_url, sonic):
     mock_create_url.return_value = "http://foo.bar.tld/endpoint"
     mock_get.return_value.__aenter__.return_value.status = 404
 
-    with pytest.raises(APIError, match="status code not 200!"):
+    with pytest.raises(APIError, match="got status code 404!"):
         await sonic._request("GET", "/endpoint")
 
 
