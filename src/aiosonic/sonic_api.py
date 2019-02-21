@@ -5,14 +5,14 @@ import logging
 import random
 import string
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import aiofiles
 import aiohttp
 
 from aiosonic.errors import APIError
-from aiosonic.types import QueryDict
+from aiosonic.types import APIReturn, QueryDict
 
 
 @dataclass
@@ -123,21 +123,21 @@ class SonicAPI:
 
                 raise APIError(f"got status code {resp.status}!")
 
-    async def ping(self) -> Dict:
+    async def ping(self) -> APIReturn:
         """/ping
 
         Used to test connectivity with the server. Takes no extra parameters.
         """
         return await self._request("GET", "/ping")
 
-    async def get_license(self) -> Dict:
+    async def get_license(self) -> APIReturn:
         """/getLicense
 
         Get details about the software license. Takes no extra parameters.
         """
         return await self._request("GET", "/getLicense")
 
-    async def get_music_folders(self) -> Dict:
+    async def get_music_folders(self) -> APIReturn:
         """/getMusicFolders
 
     Returns all configured top-level music folders. Takes no extra parameters.
@@ -148,7 +148,7 @@ class SonicAPI:
         self,
         music_folder_id: Optional[int] = None,
         if_modified_since: Optional[int] = None,
-    ) -> Dict:
+    ) -> APIReturn:
         """/getIndexes
 
         Args:
@@ -162,11 +162,9 @@ class SonicAPI:
         extra_query["musicFolderId"] = music_folder_id
         extra_query["ifModifiedSince"] = if_modified_since
 
-        result = await self._request("GET", "/getIndexes", extra_query=extra_query)
+        return await self._request("GET", "/getIndexes", extra_query=extra_query)
 
-        return result["subsonic-response"]["indexes"]
-
-    async def get_music_directory(self, folder_id: int) -> Dict:
+    async def get_music_directory(self, folder_id: int) -> APIReturn:
         """/getMusicDirectory
 
         Returns a listing of all files in a music directory. Typically used to get
@@ -176,22 +174,18 @@ class SonicAPI:
             folder_id (int): A string which uniquely identifies the music folder.
                 Obtained by calls to getIndexes or getMusicDirectory.
         """
-        result = await self._request(
+        return await self._request(
             "GET", "/getMusicDirectory", extra_query={"id": folder_id}
         )
 
-        return result["subsonic-response"]["directory"]
-
-    async def get_genres(self) -> Dict:
+    async def get_genres(self) -> APIReturn:
         """/getGenres
 
         Returns all genres.
         """
-        result = await self._request("GET", "/getGenres")
+        return await self._request("GET", "/getGenres")
 
-        return result["subsonic-response"]["genres"]
-
-    async def get_artists(self, music_folder_id: Optional[int] = None) -> Dict:
+    async def get_artists(self, music_folder_id: Optional[int] = None) -> APIReturn:
         """/getArtists
 
         Similar to getIndexes, but organizes music according to ID3 tags.
@@ -224,11 +218,9 @@ class SonicAPI:
         extra_query: QueryDict = {}
         extra_query["musicFolderId"] = music_folder_id
 
-        result = await self._request("GET", "/getArtists", extra_query=extra_query)
+        return await self._request("GET", "/getArtists", extra_query=extra_query)
 
-        return result["subsonic-response"]["artists"]
-
-    async def get_artist(self, artist_id: int) -> Dict:
+    async def get_artist(self, artist_id: int) -> APIReturn:
         """/getArtist
 
         Returns details for an artist, including a list of albums.
@@ -264,11 +256,9 @@ class SonicAPI:
                 }
 
         """
-        result = await self._request("GET", "/getArtist", extra_query={"id": artist_id})
+        return await self._request("GET", "/getArtist", extra_query={"id": artist_id})
 
-        return result["subsonic-response"]["artist"]
-
-    async def get_album(self, album_id: int) -> Dict:
+    async def get_album(self, album_id: int) -> APIReturn:
         """/getAlbum
 
         Returns details for an album, including a list of songs.
@@ -325,11 +315,9 @@ class SonicAPI:
                 }
 
         """
-        result = await self._request("GET", "/getAlbum", extra_query={"id": album_id})
+        return await self._request("GET", "/getAlbum", extra_query={"id": album_id})
 
-        return result["subsonic-response"]["album"]
-
-    async def get_song(self, song_id: int) -> Dict:
+    async def get_song(self, song_id: int) -> APIReturn:
         """/getSong
 
         Returns details for a song.
@@ -371,11 +359,9 @@ class SonicAPI:
                 }
 
         """
-        result = await self._request("GET", "/getSong", extra_query={"id": song_id})
+        return await self._request("GET", "/getSong", extra_query={"id": song_id})
 
-        return result["subsonic-response"]["song"]
-
-    async def get_videos(self) -> List[Dict]:
+    async def get_videos(self) -> APIReturn:
         """/getVideos
 
         Returns all video files.
@@ -410,11 +396,9 @@ class SonicAPI:
                 ]
 
         """
-        result = await self._request("GET", "/getVideos")
+        return await self._request("GET", "/getVideos")
 
-        return result["subsonic-response"]["videos"]
-
-    async def get_video_info(self, video_id: int) -> Dict:
+    async def get_video_info(self, video_id: int) -> APIReturn:
         """/getVideoInfo
 
         Returns details for a video, including information about available
