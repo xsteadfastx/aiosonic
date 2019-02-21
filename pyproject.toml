@@ -26,6 +26,7 @@ black = "=18.9b0"
 bpython = "^0.17.1"
 asynctest = "^0.12.2"
 pytest-asyncio = "^0.10.0"
+sphinx = "^1.8"
 
 [tool.poetry.scripts]
 aiosonic = "aiosonic.cli:main"
